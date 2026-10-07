@@ -1,3 +1,4 @@
+import {positioningTypes} from './competition.js';
 import {totalsFor,HISTORY_LIMIT} from './lifetime.js';
 import {initial,districts,scenarios,orderForDay,targetFor} from './engine.js';
 import {businessTypes,businessOperation} from './ventures.js';
@@ -46,7 +47,7 @@ function validChallenges(s){
   return true;
 }
 function valid(s){
-  if(!s||!Object.hasOwn(scenarios,s.scenario)||!integer(s.day,1)||!finite(s.cash)||
+  if(!s||!Object.hasOwn(positioningTypes,s.positioning)||!Object.hasOwn(scenarios,s.scenario)||!integer(s.day,1)||!finite(s.cash)||
     typeof s.sandbox!=='boolean'||(s.sandbox&&s.day<31)||(!s.sandbox&&s.day>31)||typeof s.over!=='boolean'||s.over!==(s.cash<0||(!s.sandbox&&s.day>30)))return false;
   if(!(s.contract===null||(!s.over&&s.contract===s.day&&orderForDay(s.contract,s.sandbox)))||
     typeof s.equipment!=='boolean'||!integer(s.training,0,2)||
@@ -59,7 +60,7 @@ function valid(s){
   if(!Array.isArray(s.ventures)||s.ventures.length>Object.keys(businessTypes).length||new Set(s.ventures.map(v=>v?.id)).size!==s.ventures.length||
     !s.ventures.every(v=>v&&Object.hasOwn(businessTypes,v.id)&&s.day>=businessTypes[v.id].unlockDay&&
       integer(v.stock,0)&&integer(v.price,businessTypes[v.id].minPrice,businessTypes[v.id].maxPrice)&&
-      integer(v.level,0,2)&&typeof v.paused==='boolean'&&typeof v.staff==='boolean'&&integer(v.reputation,0,100)))return false;
+      Object.hasOwn(positioningTypes,v.positioning)&&integer(v.level,0,2)&&typeof v.paused==='boolean'&&typeof v.staff==='boolean'&&integer(v.reputation,0,100)))return false;
   if(!integer(s.promotionUntil,0,s.day+2)||!Array.isArray(s.decisions)||s.decisions.length>120||
     new Set(s.decisions.map(d=>d?.day)).size!==s.decisions.length||
     !s.decisions.every(d=>d&&d.day<=s.day&&integer(d.day,1)&&storyForDay(d.day,s.sandbox)?.choices.some(c=>c.id===d.choice)))return false;
@@ -73,7 +74,7 @@ function valid(s){
 export function decodeGame(raw){
   if(typeof raw!=='string'||raw.length>MAX_BACKUP_BYTES)throw new Error('O backup excede o tamanho permitido.');
   const data=JSON.parse(raw),s=data?.state,v=data?.version;
-  if(!integer(v,1,11)||!s||typeof s!=='object'||Array.isArray(s))throw new Error('Backup inválido ou versão incompatível.');
+  if(!integer(v,1,12)||!s||typeof s!=='object'||Array.isArray(s))throw new Error('Backup inválido ou versão incompatível.');
   if(v<=1&&s.branches===undefined)s.branches=1;
   if(v<=2&&s.district===undefined)s.district=s.branches===2?'center':null;
   if(v<=3){
@@ -112,12 +113,16 @@ export function decodeGame(raw){
     if(Array.isArray(s.ventures))for(const venture of s.ventures)if(venture)venture.level=0;
     if(Array.isArray(s.history))for(const r of s.history)if(Array.isArray(r?.ventures))for(const venture of r.ventures)if(venture)venture.level=0;
   }
+  if(v<=11){
+    s.positioning='balanced';
+    if(Array.isArray(s.ventures))for(const venture of s.ventures)if(venture)venture.positioning='balanced';
+  }
   if(!valid(s))throw new Error('Backup inválido ou versão incompatível.');
   return s;
 }
 export function encodeGame(state){
   if(!valid(state))throw new Error('Não foi possível gerar o backup desta partida.');
-  return JSON.stringify({version:11,state},null,2);
+  return JSON.stringify({version:12,state},null,2);
 }
 export function loadGame(storage){
   try{

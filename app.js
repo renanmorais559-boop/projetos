@@ -1,3 +1,4 @@
+import {createMarketUI} from './market-ui.js';
 import {createStrategyUI} from './strategy-ui.js';
 import {workingCapital} from './capital.js';
 import {calendarWeek,marketCalendar} from './calendar.js';
@@ -25,6 +26,7 @@ let selectedScreen=state.over?'results':'operation';
 let town;
 let portfolio;
 let strategyLab;
+let marketUI;
 let dayPlayer;
 let fastDays=false;
 const screens={operation:'Operação',city:'Cidade',business:'Negócios',investment:'Investimentos',results:'Resultados'};
@@ -41,6 +43,7 @@ function syncControls(){ $('supplier').value='regular';$('quantity').value=20; $
 function render(){
   $('coachText').textContent=advise(state);
   portfolio?.render();
+  marketUI?.render();
   strategyLab?.render();
   const story=availableDilemma(state);
   $('storyCard').hidden=!story;
@@ -101,7 +104,7 @@ function render(){
   purchasePreview();
   $('priceValue').textContent=money(state.price);
   $('network').textContent=`${state.branches} unidade${state.branches>1?'s':''} · capacidade de ${capacity(state)} vendas/dia · operação ${money(operationCost(state))}/dia`;
-  town?.setState(selectedDistrict,state.district);
+  town?.setState(selectedDistrict,state.district,state);
   const location=districts[selectedDistrict];
   $('districtMap').innerHTML=Object.entries(districts).map(([id,d])=>`<label class="district ${id===selectedDistrict?'selected':''}"><input type="radio" name="district" value="${id}" ${id===selectedDistrict?'checked':''} ${state.over||state.branches===2?'disabled':''}><strong>${d.name}</strong><span>${d.description}</span><span>Abertura ${money(d.cost)} · operação +${money(d.rent)}/dia</span><span>Demanda base +${d.demand} · capacidade +25</span>${state.district===id?'<b>Sua segunda unidade</b>':''}</label>`).join('');
   $('expand').disabled=state.over||state.branches===2||state.cash<location.cost;
@@ -234,9 +237,10 @@ $('reset').onclick=()=>{if(!confirm('Recomeçar o mesmo cenário e substituir a 
 
 $('fastDays').onclick=()=>{fastDays=!fastDays;$('fastDays').setAttribute('aria-pressed',String(fastDays));$('fastDays').textContent=fastDays?'⚡ Resumo direto':'▶ Animar expediente'};
 dayPlayer=createDayPlayer({dialog:$('dayDialog'),onDetails:()=>{selectedScreen='business';showScreen()}});
+marketUI=createMarketUI($('marketPanel'),()=>state,message=>{flash(message);persist();render()});
 strategyLab=createStrategyUI($('strategyLab'),()=>state,message=>{flash(message);syncControls();persist();render()});
 portfolio=createBusinessUI($('businessCards'),()=>state,message=>{flash(message);persist();render()});
-town=createTown({canvas:$('townCanvas'),info:$('townInfo'),inspect:$('inspectSite'),controls:$('townControls'),onChoose:id=>{if(state.over||state.branches===2){$('townInfo').textContent='A localização da sua filial já está definida ou a partida terminou.';return;}selectedDistrict=id;render()}});
+town=createTown({canvas:$('townCanvas'),info:$('townInfo'),inspect:$('inspectSite'),controls:$('townControls'),onVisit:(_kind,id)=>{selectedScreen=Object.hasOwn(businessTypes,id)?'business':id==='bank'?'investment':'operation';showScreen();const target=Object.hasOwn(businessTypes,id)?`business-card-${id}`:id==='bank'?'bankPanel':id==='supplier'?'supplierPanel':'price';$(target)?.scrollIntoView({block:'start'});$(target)?.focus({preventScroll:true})},onChoose:id=>{if(state.over||state.branches===2){$('townInfo').textContent='A localização da sua filial já está definida ou a partida terminou.';return;}selectedDistrict=id;render()}});
 syncControls();
 if(state.history.length)showResult(state.history.at(-1));
 $('saveStatus').textContent=loaded.status==='loaded'?'Partida retomada. Progresso salvo neste navegador.':loaded.status==='invalid'?'O salvamento anterior não pôde ser lido. Uma nova partida foi iniciada.':loaded.status==='unavailable'?'Armazenamento indisponível. Esta partida não será salva.':'O progresso será salvo automaticamente neste navegador.';

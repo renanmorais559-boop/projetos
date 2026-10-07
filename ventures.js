@@ -1,3 +1,4 @@
+import {marketInfluence} from './competition.js';
 export const businessTypes = {
   bakery: {
     name: 'Padaria Pão da Vila', icon: '🥐', category: 'Alimentação',
@@ -22,7 +23,7 @@ export function openBusiness(s, id) {
   const type = Object.hasOwn(businessTypes, id) ? businessTypes[id] : null;
   if (!type || s.over || s.day < type.unlockDay || s.ventures.some(v => v.id === id) || s.cash < type.opening) return false;
   s.cash -= type.opening;
-  s.ventures.push({id, stock: 0, price: type.price, staff: false, reputation: 50, paused: false, level: 0});
+  s.ventures.push({id, stock: 0, price: type.price, staff: false, reputation: 50, paused: false, level: 0, positioning: 'balanced'});
   return true;
 }
 export function buyBusinessStock(s, id, quantity) {
@@ -48,13 +49,14 @@ export function upgradeBusiness(s,id){
   if(!v||s.over||v.level>=2||s.cash<businessUpgradeCost(v))return false;
   s.cash-=businessUpgradeCost(v);v.level++;return true;
 }
-export function projectBusiness(v, event, calendarFactor=1) {
+export function projectBusiness(v, event, calendarFactor=1,day=1,sandbox=false) {
   const type = businessTypes[v.id];
   if(v.paused)return {id:v.id,level:v.level,paused:true,demand:0,sold:0,revenue:0,expenses:businessOperation(v)/2,goodsCost:0,profit:-businessOperation(v)/2,lost:0};
+  const market=marketInfluence(v.id,v.price,v.positioning,day,sandbox);
   const demand = Math.max(0, Math.round((type.demand + (v.reputation - 50) * .2) *
-    Math.max(.1, 1 + (type.price - v.price) * .055) * event.factor * calendarFactor));
+    Math.max(.1, 1 + (type.price - v.price) * .055 * market.elasticity) * event.factor * calendarFactor * market.factor));
   const capacity = businessCapacity(v);
   const sold = Math.min(v.stock, demand, capacity), revenue = sold * v.price;
-  const expenses = businessOperation(v) + (v.staff ? type.wage : 0), goodsCost = sold * type.cost;
+  const expenses = businessOperation(v) + market.daily + (v.staff ? type.wage : 0), goodsCost = sold * type.cost;
   return {id: v.id, level:v.level, demand, sold, revenue, expenses, goodsCost, profit: revenue - expenses - goodsCost, lost: demand - sold};
 }

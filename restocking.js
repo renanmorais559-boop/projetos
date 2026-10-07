@@ -12,7 +12,7 @@ export function restockPlan(s,days=2){
   for(const v of s.ventures){
     if(v.paused)continue;
     const type=businessTypes[v.id];
-    const target=Array.from({length:days},(_,i)=>Math.min(projectBusiness(v,events[0],marketCalendar(s.day+i,s.sandbox).factors[v.id]).demand,businessCapacity(v))).reduce((a,b)=>a+b,0);
+    const target=Array.from({length:days},(_,i)=>Math.min(projectBusiness(v,events[0],marketCalendar(s.day+i,s.sandbox).factors[v.id],s.day+i,s.sandbox).demand,businessCapacity(v))).reduce((a,b)=>a+b,0);
     const quantity=Math.max(0,target-v.stock);
     items.push({id:v.id,name:type.name,stock:v.stock,target,quantity,cost:quantity*type.cost});
   }

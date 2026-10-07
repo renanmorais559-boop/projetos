@@ -1,3 +1,4 @@
+import {marketInfluence} from './competition.js';
 import {marketCalendar} from './calendar.js';
 import {finishChallenge} from './challenges.js';
 import {emptyTotals,recordTotals,HISTORY_LIMIT} from './lifetime.js';
@@ -27,7 +28,7 @@ export function upgrade(s){
 }
 export const initial = (scenario='standard') => {
   if(!Object.hasOwn(scenarios,scenario))throw new Error('Cenário desconhecido.');
-  return {scenario,day:1,cash:scenarios[scenario].cash,stock:30,lots:[{quantity:30,cost:8}],price:20,marketing:0,staff:false,branches:1,district:null,loan:null,contract:null,equipment:false,training:0,ventures:[],decisions:[],promotionUntil:0,reputation:50,history:[],over:false,sandbox:false,campaign:null,totals:emptyTotals(),challenge:null,lastChallenge:null,badges:[]};
+  return {scenario,day:1,cash:scenarios[scenario].cash,stock:30,lots:[{quantity:30,cost:8}],price:20,marketing:0,staff:false,branches:1,district:null,loan:null,contract:null,equipment:false,training:0,ventures:[],decisions:[],promotionUntil:0,reputation:50,history:[],over:false,sandbox:false,campaign:null,totals:emptyTotals(),challenge:null,lastChallenge:null,badges:[],positioning:'balanced'};
 };
 export const suppliers={regular:{name:'Distribuidor local',cost:8,min:1},wholesale:{name:'Atacado',cost:6,min:50}};
 export function inventoryCost(s,quantity=s.stock){
@@ -45,7 +46,7 @@ export function buy(s,quantity,supplier='regular'){
   return true;
 }
 export function breakEven(s){
-  const fixed=operationCost(s)+s.marketing+cafePayroll(s);
+  const fixed=operationCost(s)+s.marketing+cafePayroll(s)+marketInfluence('cafe',s.price,s.positioning,s.day,s.sandbox).daily;
   for(let n=1;n<=Math.min(s.stock,capacity(s));n++)if(n*s.price-inventoryCost(s,n)>=fixed)return n;
   return null;
 }
@@ -83,18 +84,19 @@ export function acceptOrder(s){
 }
 export const events=[{title:'Dia normal',factor:1},{title:'Festival no bairro: mais movimento!',factor:1.35},{title:'Chuva forte: menos clientes na rua',factor:.7},{title:'Concorrente em promoção',factor:.85}];
 export function projectCafe(s,event=events[0]){
-  const retailDemand=Math.max(0,Math.round((24+(s.day<=s.promotionUntil?8:0)+(s.branches===2?districts[s.district].demand:0)+(s.reputation-50)*.25+s.marketing*.12)*Math.max(.1,1+(20-s.price)*.065)*event.factor*marketCalendar(s.day,s.sandbox).factors.cafe));
+  const market=marketInfluence('cafe',s.price,s.positioning,s.day,s.sandbox);
+  const retailDemand=Math.max(0,Math.round((24+(s.day<=s.promotionUntil?8:0)+(s.branches===2?districts[s.district].demand:0)+(s.reputation-50)*.25+s.marketing*.12)*Math.max(.1,1+(20-s.price)*.065*market.elasticity)*event.factor*marketCalendar(s.day,s.sandbox).factors.cafe*market.factor));
   const order=s.contract===null?null:orderForDay(s.contract,s.sandbox);
   const contractFailed=Boolean(order&&(s.stock<order.quantity||capacity(s)<order.quantity));
   const contractSold=order&&!contractFailed?order.quantity:0;
   const retailSold=Math.min(s.stock-contractSold,retailDemand,capacity(s)-contractSold);
   const sold=retailSold+contractSold,demand=retailDemand+(order?.quantity??0);
-  const revenue=retailSold*s.price+contractSold*(order?.price??0),expenses=operationCost(s)+s.marketing+cafePayroll(s)+(contractFailed?80:0),goodsCost=inventoryCost(s,sold),profit=revenue-goodsCost-expenses;
+  const revenue=retailSold*s.price+contractSold*(order?.price??0),expenses=operationCost(s)+s.marketing+cafePayroll(s)+market.daily+(contractFailed?80:0),goodsCost=inventoryCost(s,sold),profit=revenue-goodsCost-expenses;
   const payment=s.loan?creditTerms.installment:0;
   return {day:s.day,event:event.title,demand,sold,revenue,expenses,goodsCost,profit,payment,contractSold,contractFailed,lost:demand-sold};
 }
 export function projectDay(s,event=events[0]){
-  const cafe=projectCafe(s,event),ventures=s.ventures.map(v=>projectBusiness(v,event,marketCalendar(s.day,s.sandbox).factors[v.id]));
+  const cafe=projectCafe(s,event),ventures=s.ventures.map(v=>projectBusiness(v,event,marketCalendar(s.day,s.sandbox).factors[v.id],s.day,s.sandbox));
   const result={...cafe,cafe:{...cafe},ventures};
   for(const key of ['demand','sold','revenue','expenses','goodsCost','profit','lost'])
     result[key]+=ventures.reduce((sum,v)=>sum+v[key],0);
