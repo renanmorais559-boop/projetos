@@ -16,7 +16,7 @@ O servidor usa a porta 3000. Para testar a simulação: `npm test`.
 
 O jogo é estático e usa caminhos relativos, compatíveis com a hospedagem em uma subpasta. No repositório, configure **Settings → Pages → Deploy from a branch → main → / (root)**. O arquivo `.nojekyll` permite servir os arquivos diretamente. O progresso é local ao navegador; um endereço de publicação diferente começa com armazenamento próprio, mas pode importar um backup.
 
-Este primeiro protótipo tem uma loja, salvamento automático no navegador e uma economia simplificada. O mapa permite escolher a segunda cafeteria: Vila Jardim (R$ 1.400, +16 clientes base, +R$ 60/dia), Centro (R$ 1.800, +24 clientes, +R$ 90/dia) ou Estação (R$ 2.300, +34 clientes, +R$ 140/dia). Todas adicionam 25 vagas de atendimento. O mapa 2D permite caminhar com setas ou W A S D, ou com controles na tela. Visite pontos comerciais e use Escolher este bairro para comparar o investimento; explorar não gasta dinheiro nem avança o dia. Os cartões continuam disponíveis como alternativa. A posição do personagem não é salva. As lojas compartilham estoque, preços, marketing e reputação. Não inclui mundo 3D ou outros tipos de negócio. Salvamentos antigos são migrados automaticamente. A partida é retomada ao recarregar a página no mesmo navegador e endereço. Limpar os dados do navegador remove o progresso; não há sincronização entre dispositivos. Recomeçar substitui a partida salva após confirmação. Se o armazenamento estiver indisponível, o jogo avisa e continua em memória. Arte criada com HTML e CSS, sem recursos de outros jogos.
+Este primeiro protótipo tem uma loja, salvamento automático no navegador e uma economia simplificada. O mapa permite escolher a segunda cafeteria: Vila Jardim (R$ 1.400, +16 clientes base, +R$ 60/dia), Centro (R$ 1.800, +24 clientes, +R$ 90/dia) ou Estação (R$ 2.300, +34 clientes, +R$ 140/dia). Todas adicionam 25 vagas de atendimento. O mapa 2D permite caminhar com setas ou W A S D, ou com controles na tela. Visite pontos comerciais e use Escolher este bairro para comparar o investimento; explorar não gasta dinheiro nem avança o dia. Os cartões continuam disponíveis como alternativa. A posição do personagem não é salva. As lojas compartilham estoque, preços, marketing e reputação. Não inclui mundo 3D. Padaria e minimercado têm gestão própria e são liberados durante a campanha. Salvamentos antigos são migrados automaticamente. A partida é retomada ao recarregar a página no mesmo navegador e endereço. Limpar os dados do navegador remove o progresso; não há sincronização entre dispositivos. Recomeçar substitui a partida salva após confirmação. Se o armazenamento estiver indisponível, o jogo avisa e continua em memória. Arte criada com HTML e CSS, sem recursos de outros jogos.
 
 ## Crédito empresarial
 
@@ -57,3 +57,14 @@ Ofertas nos dias 5 (15 unidades a R$ 16), 12 (25 a R$ 16) e 20 (40 a R$ 17). Ace
 ## Direção visual
 
 Interface verde-escura e dourada, navegação lateral em telas grandes e controles compactos em celulares. A operação usa uma ilustração original gerada para o Café Aurora, em `assets/cafe-aurora.png`; é um cenário estático. A exploração continua disponível no mapa 2D da tela Cidade. Indicadores e decisões são HTML interativo, não textos embutidos na arte.
+
+## Versão 0.2 — diversificação e campanha
+
+- **Padaria Pão da Vila**, disponível no dia 8: abertura R$ 2.000, estoque R$ 5/unidade, operação R$ 110/dia, equipe opcional R$ 80/dia.
+- **Mini Mercado Horizonte**, disponível no dia 15: abertura R$ 2.800, estoque R$ 12/unidade, operação R$ 140/dia, equipe opcional R$ 90/dia.
+- Cada negócio tem preço, estoque, equipe e reputação próprios. O caixa é compartilhado; avançar o dia opera todas as lojas. Abrir sem repor estoque gera despesas sem receita.
+- Treinamento da cafeteria: dois níveis (R$ 300 / R$ 500), cada um acrescenta 8 de capacidade e R$ 20/dia de salários. Também melhora a reputação quando a demanda é atendida integralmente.
+- Situações opcionais nos dias 7, 14 e 23: atendimento, divulgação, reclamação e apoio à comunidade. Gastos são pagos na decisão e ficam separados do lucro operacional.
+- Expediente animado com opção de pular, resumo consolidado e comparação por loja. Preferência por movimento reduzido é respeitada.
+- Guia de início, mentor contextual, marcos de desbloqueio e novas conquistas.
+- Saves e backups antigos são migrados para a versão 9 sem reiniciar o progresso. A ilustração principal continua estática; personagens da animação do expediente são uma representação visual das vendas calculadas.

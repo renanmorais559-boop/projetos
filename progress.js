@@ -12,6 +12,8 @@ export function summarize(s){
     {title:'Atendimento completo',description:'Atenda toda a demanda em 5 dias com clientes.',value:Math.min(s.history.filter(r=>r.demand>0&&r.lost===0).length,5),target:5},
     {title:'Sua primeira rede',description:'Abra a segunda cafeteria.',value:s.branches-1,target:1},
     {title:'Primeiro império',description:`Conclua 30 dias com ${targetFor(s).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})} de caixa líquido.`,value:s.over&&s.day===31&&netCash(s)>=targetFor(s)?1:0,target:1}
+    ,{title:'Diversifique',description:'Abra a padaria ou o minimercado.',value:Math.min(s.ventures.length,1),target:1}
+    ,{title:'Lidere sua equipe',description:'Invista no primeiro treinamento da cafeteria.',value:Math.min(s.training,1),target:1}
   ].map(m=>({...m,done:m.value===m.target}));
   const feedback=[];
   if(s.cash<0)feedback.push('O caixa ficou negativo. Na próxima partida, reserve dinheiro para operação e parcelas antes de investir.');
