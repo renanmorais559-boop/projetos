@@ -1,3 +1,5 @@
+import {marketCalendar} from './calendar.js';
+import {finishChallenge} from './challenges.js';
 import {emptyTotals,recordTotals,HISTORY_LIMIT} from './lifetime.js';
 import {projectBusiness} from './ventures.js';
 export const scenarios={
@@ -25,7 +27,7 @@ export function upgrade(s){
 }
 export const initial = (scenario='standard') => {
   if(!Object.hasOwn(scenarios,scenario))throw new Error('Cenário desconhecido.');
-  return {scenario,day:1,cash:scenarios[scenario].cash,stock:30,lots:[{quantity:30,cost:8}],price:20,marketing:0,staff:false,branches:1,district:null,loan:null,contract:null,equipment:false,training:0,ventures:[],decisions:[],promotionUntil:0,reputation:50,history:[],over:false,sandbox:false,campaign:null,totals:emptyTotals()};
+  return {scenario,day:1,cash:scenarios[scenario].cash,stock:30,lots:[{quantity:30,cost:8}],price:20,marketing:0,staff:false,branches:1,district:null,loan:null,contract:null,equipment:false,training:0,ventures:[],decisions:[],promotionUntil:0,reputation:50,history:[],over:false,sandbox:false,campaign:null,totals:emptyTotals(),challenge:null,lastChallenge:null,badges:[]};
 };
 export const suppliers={regular:{name:'Distribuidor local',cost:8,min:1},wholesale:{name:'Atacado',cost:6,min:50}};
 export function inventoryCost(s,quantity=s.stock){
@@ -81,7 +83,7 @@ export function acceptOrder(s){
 }
 export const events=[{title:'Dia normal',factor:1},{title:'Festival no bairro: mais movimento!',factor:1.35},{title:'Chuva forte: menos clientes na rua',factor:.7},{title:'Concorrente em promoção',factor:.85}];
 export function projectCafe(s,event=events[0]){
-  const retailDemand=Math.max(0,Math.round((24+(s.day<=s.promotionUntil?8:0)+(s.branches===2?districts[s.district].demand:0)+(s.reputation-50)*.25+s.marketing*.12)*Math.max(.1,1+(20-s.price)*.065)*event.factor));
+  const retailDemand=Math.max(0,Math.round((24+(s.day<=s.promotionUntil?8:0)+(s.branches===2?districts[s.district].demand:0)+(s.reputation-50)*.25+s.marketing*.12)*Math.max(.1,1+(20-s.price)*.065)*event.factor*marketCalendar(s.day,s.sandbox).factors.cafe));
   const order=s.contract===null?null:orderForDay(s.contract,s.sandbox);
   const contractFailed=Boolean(order&&(s.stock<order.quantity||capacity(s)<order.quantity));
   const contractSold=order&&!contractFailed?order.quantity:0;
@@ -92,7 +94,7 @@ export function projectCafe(s,event=events[0]){
   return {day:s.day,event:event.title,demand,sold,revenue,expenses,goodsCost,profit,payment,contractSold,contractFailed,lost:demand-sold};
 }
 export function projectDay(s,event=events[0]){
-  const cafe=projectCafe(s,event),ventures=s.ventures.map(v=>projectBusiness(v,event));
+  const cafe=projectCafe(s,event),ventures=s.ventures.map(v=>projectBusiness(v,event,marketCalendar(s.day,s.sandbox).factors[v.id]));
   const result={...cafe,cafe:{...cafe},ventures};
   for(const key of ['demand','sold','revenue','expenses','goodsCost','profit','lost'])
     result[key]+=ventures.reduce((sum,v)=>sum+v[key],0);
@@ -116,5 +118,6 @@ export function runDay(s,random=Math.random){
   s.history.push(result);if(s.history.length>HISTORY_LIMIT)s.history.shift();s.day++;
   if(s.day===31)s.campaign={cash:s.cash,netCash:netCash(s),won:s.cash>=0&&netCash(s)>=targetFor(s)};
   s.over=s.cash<0||(!s.sandbox&&s.day>30);
+  finishChallenge(s);
   return result;
 }

@@ -1,15 +1,18 @@
+import {marketCalendar} from './calendar.js';
 import {buy,projectCafe,events,capacity,suppliers} from './engine.js';
-import {businessTypes,buyBusinessStock,projectBusiness} from './ventures.js';
+import {businessTypes,buyBusinessStock,projectBusiness,businessCapacity} from './ventures.js';
 export function restockPlan(s,days=2){
   if(!Number.isInteger(days)||days<1||days>7)throw new Error('Escolha de 1 a 7 dias.');
-  const cafe=projectCafe(s,events[0]);
-  const cafeTarget=Math.min(cafe.demand,capacity(s))+(days-1)*Math.min(cafe.demand-cafe.contractSold,capacity(s));
+  const cafeTarget=Array.from({length:days},(_,i)=>{
+    const future={...s,day:s.day+i,contract:i===0?s.contract:null};
+    return Math.min(projectCafe(future,events[0]).demand,capacity(s));
+  }).reduce((a,b)=>a+b,0);
   const quantity=Math.max(0,cafeTarget-s.stock),supplier=quantity>=50?'wholesale':'regular';
   const items=[{id:'cafe',name:'Rede Café Aurora',stock:s.stock,target:cafeTarget,quantity,supplier,cost:quantity*suppliers[supplier].cost}];
   for(const v of s.ventures){
     if(v.paused)continue;
-    const type=businessTypes[v.id],forecast=projectBusiness(v,events[0]);
-    const target=Math.min(forecast.demand,v.staff?type.staffedCapacity:type.capacity)*days;
+    const type=businessTypes[v.id];
+    const target=Array.from({length:days},(_,i)=>Math.min(projectBusiness(v,events[0],marketCalendar(s.day+i,s.sandbox).factors[v.id]).demand,businessCapacity(v))).reduce((a,b)=>a+b,0);
     const quantity=Math.max(0,target-v.stock);
     items.push({id:v.id,name:type.name,stock:v.stock,target,quantity,cost:quantity*type.cost});
   }

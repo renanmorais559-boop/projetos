@@ -1,3 +1,7 @@
+import {createStrategyUI} from './strategy-ui.js';
+import {workingCapital} from './capital.js';
+import {calendarWeek,marketCalendar} from './calendar.js';
+import {challengeTypes,startChallenge,challengeProgress} from './challenges.js';
 import {restockPlan,replenishCompany} from './restocking.js';
 import {financialReport,exportLedger} from './reports.js';
 import {initial,buy,runDay,expand,districts,operationCost,borrow,repay,debt,netCash,upgrade,capacity,scenarios,targetFor,suppliers,inventoryCost,breakEven,availableOrder,acceptOrder,trainTeam,cafePayroll,continueCompany} from './engine.js';
@@ -20,11 +24,12 @@ let selectedDistrict=state.district??'center';
 let selectedScreen=state.over?'results':'operation';
 let town;
 let portfolio;
+let strategyLab;
 let dayPlayer;
 let fastDays=false;
 const screens={operation:'Operação',city:'Cidade',business:'Negócios',investment:'Investimentos',results:'Resultados'};
 function showScreen(){
-  for(const node of document.querySelectorAll('[data-view]'))node.hidden=node.dataset.view!==selectedScreen||(node.id==='planning'&&state.over)||(node.id==='review'&&!state.over)||(node.id==='storyCard'&&!availableDilemma(state));
+  for(const node of document.querySelectorAll('[data-view]'))node.hidden=node.dataset.view!==selectedScreen||(node.id==='planning'&&state.over)||(node.id==='review'&&!state.over)||(node.id==='storyCard'&&!availableDilemma(state))||(node.id==='calendarCard'&&!state.sandbox);
   for(const button of document.querySelectorAll('[data-screen]'))button.setAttribute('aria-pressed',String(button.dataset.screen===selectedScreen));
   town?.setActive(selectedScreen==='city');
   $('screenStatus').textContent=`${screens[selectedScreen]} · Dia ${state.sandbox?`${state.day} · Modo livre`:`${Math.min(30,state.day)} de 30`}`;
@@ -36,6 +41,7 @@ function syncControls(){ $('supplier').value='regular';$('quantity').value=20; $
 function render(){
   $('coachText').textContent=advise(state);
   portfolio?.render();
+  strategyLab?.render();
   const story=availableDilemma(state);
   $('storyCard').hidden=!story;
   $('storyTitle').textContent=story?.title??'';
@@ -71,6 +77,11 @@ function render(){
   $('continueCompany').hidden=!(state.over&&!state.sandbox&&state.day===31&&state.cash>=0);
   $('campaignRecord').textContent=state.campaign?`Campanha de 30 dias: ${state.campaign.won?'meta alcançada':'meta não alcançada'} · caixa líquido final ${money(state.campaign.netCash)}. Este resultado fica preservado no modo livre.`:'';
   renderManagement();
+  renderChallenges();
+  renderCalendar();
+  const capital=workingCapital(state,3);
+  $('capitalRows').innerHTML=[['Reposição estimada',capital.replenishment],['Operação, salários e publicidade',capital.operations],['Parcelas previstas',capital.payments],['Reserva total sugerida',capital.reserve]].map(([label,value])=>`<tr><td>${label}</td><td>${money(value)}</td></tr>`).join('');
+  $('capitalStatus').textContent=capital.gap?`Faltam ${money(capital.gap)} para cobrir este planejamento de três dias com o caixa atual. As vendas futuras podem ajudar, mas são incertas.`:`Seu caixa cobre esta estimativa e deixa ${money(capital.afterReserve)} além da reserva. Avalie os cenários antes de investir.`;
   $('reviewTitle').textContent=summary.outcome;
   $('review').hidden=!state.over;
   $('reviewStats').textContent=`${summary.days} dias · ${summary.sold} vendas · atendimento ${summary.service===null?'sem demanda':summary.service+'%'} · lucro operacional acumulado ${money(summary.profit)} · caixa líquido ${money(summary.netCash)}`;
@@ -100,6 +111,22 @@ function render(){
   for(const id of ['next','buy','price','marketing','staff','quantity','supplier'])$(id).disabled=state.over;
   showScreen();
 }
+function renderCalendar(){
+  const current=marketCalendar(state.day,state.sandbox);
+  $('calendarTitle').textContent=`${current.name} · dia ${state.day}`;
+  $('calendarNote').textContent=current.note;
+  $('calendarRows').innerHTML=calendarWeek(state).map(d=>`<tr${d.day===state.day?' class="calendar-today"':''}><td>${d.day} · ${d.name}</td>${['cafe','bakery','market','electronics'].map(id=>`<td class="${d.factors[id]>1?'positive':d.factors[id]<1?'negative':''}">${Math.round((d.factors[id]-1)*100)}%</td>`).join('')}</tr>`).join('');
+}
+function renderChallenges(){
+  const active=state.challenge,progress=challengeProgress(state),last=state.lastChallenge;
+  $('challengeStatus').textContent=active?`${challengeTypes[active.id].name} · dias ${active.startDay} a ${active.startDay+6} · ${progress.days}/7 encerrados`:
+    !state.sandbox?'Desafios de gestão se desbloqueiam ao continuar a empresa em modo livre.':last?`${last.won?'✓ Desafio conquistado':'Desafio encerrado sem atingir a meta'}: ${challengeTypes[last.id].name} · dias ${last.startDay} a ${last.endDay}.`:'Escolha uma meta para os próximos sete dias.';
+  $('challengeProgress').hidden=!progress;
+  $('challengeProgress').textContent=progress?`Lucro: ${money(progress.profit)} · vendas: ${progress.sold} · atendimento: ${progress.service===null?'sem demanda':progress.service+'%'} · dias lucrativos: ${progress.profitable}/${progress.days}. Restam ${progress.remaining} dias.`:'';
+  $('challengeCards').innerHTML=Object.entries(challengeTypes).map(([id,c])=>`<article class="challenge-option ${state.badges.includes(id)?'earned':''}"><strong>${state.badges.includes(id)?'✓ ':''}${c.name}</strong><p>${c.description}</p><button class="secondary" data-challenge="${id}" ${state.over||!state.sandbox||active?'disabled':''}>${state.badges.includes(id)?'Repetir desafio':'Começar desafio'}</button></article>`).join('');
+  $('challengeBadgeCount').textContent=`${state.badges.length}/3 medalhas de gestão`;
+}
+$('challengeCards').onclick=e=>{const button=e.target.closest('[data-challenge]');if(button&&startChallenge(state,button.dataset.challenge)){flash('Desafio iniciado para os próximos sete dias. A meta não tem custo nem prêmio em dinheiro.');persist();render()}};
 function renderManagement(){
   const plan=restockPlan(state,Number($('restockDays').value));
   $('restockRows').innerHTML=plan.items.map(i=>`<tr><td>${i.name}</td><td>${i.stock}</td><td>${i.target}</td><td>${i.quantity}</td><td>${money(i.cost)}</td></tr>`).join('');
@@ -109,13 +136,14 @@ function renderManagement(){
   $('financialPeriod').textContent=r.days?`Dias ${r.first} a ${r.last} · ${r.days} dias encerrados`:'Aguardando o primeiro expediente';
   $('financialStats').innerHTML=[['Receita',money(r.revenue)],['Lucro operacional',money(r.profit)],['Margem operacional',r.margin===null?'—':r.margin.toFixed(1)+'%'],['Atendimento',r.service===null?'—':r.service.toFixed(1)+'%']].map(([k,v])=>`<div class="stat"><span>${k}</span><strong>${v}</strong></div>`).join('');
   $('financialRows').innerHTML=r.businesses.map(b=>`<tr><td>${b.name}</td><td>${b.days}</td><td>${money(b.revenue)}</td><td>${money(b.goodsCost+b.expenses)}</td><td class="${b.profit>=0?'positive':'negative'}">${money(b.profit)}</td></tr>`).join('');
+  $('expedientCash').textContent=`Caixa gerado pelos expedientes: ${money(r.revenue-r.expenses-r.payment)}, antes de reposição de estoque, investimentos e decisões. Custo dos produtos vendidos no lucro: ${money(r.goodsCost)}; parcelas pagas: ${money(r.payment)}.`;
   $('financialComparison').textContent=r.days===7&&r.previousDays===7?`Lucro dos sete dias anteriores: ${money(r.previousProfit)} · variação: ${money(r.profit-r.previousProfit)}.`:'A comparação com a semana anterior aparece após 14 dias completos.';
   $('exportLedger').disabled=!state.history.length;
   $('historyWindow').textContent=`Mostrando ${Math.min(state.history.length,Number($('historyDays').value))} de ${state.history.length} dias disponíveis (máximo 120). Os totais e conquistas preservam os ${state.totals.days} dias da empresa; o gráfico exibe até 30 dias recentes.`;
 }
 $('historyDays').onchange=render;
 $('restockDays').onchange=renderManagement;
-$('restockAll').onclick=()=>{const days=Number($('restockDays').value),plan=restockPlan(state,days);if(!confirm(`Comprar ${money(plan.total)} em estoque para as lojas ativas? A estimativa usa demanda normal por ${days} dias; eventos e reputação podem mudar o consumo. Caixa restante: ${money(state.cash-plan.total)}.`))return;if(replenishCompany(state,days)){flash('Compra conjunta recebida. Estoques e caixa atualizados.');persist();render()}};
+$('restockAll').onclick=()=>{const days=Number($('restockDays').value),plan=restockPlan(state,days);if(!confirm(`Comprar ${money(plan.total)} em estoque para as lojas ativas? A estimativa usa demanda normal e calendário por ${days} dias; eventos e reputação podem mudar o consumo. Caixa restante: ${money(state.cash-plan.total)}.`))return;if(replenishCompany(state,days)){flash('Compra conjunta recebida. Estoques e caixa atualizados.');persist();render()}};
 $('continueCompany').onclick=()=>{if(continueCompany(state)){selectedScreen='operation';flash('Modo livre iniciado. Você mantém caixa, estoque, dívida e todas as lojas; a empresa pode continuar por novos dias.');persist();render()}};
 $('exportLedger').onclick=()=>{const url=URL.createObjectURL(new Blob([exportLedger(state)],{type:'text/csv;charset=utf-8'})),a=document.createElement('a');a.href=url;a.download=`primeiro-imperio-financas-dia-${state.day}.csv`;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);flash('Relatório CSV preparado para abrir em uma planilha. Linhas consolidadas e por loja são identificadas separadamente.');};
 $('storyChoices').onclick=e=>{const button=e.target.closest('[data-story-choice]');if(button&&resolveDilemma(state,button.dataset.storyChoice)){flash('Escolha registrada. Caixa, reputação e demanda foram atualizados.');persist();render()}};
@@ -186,7 +214,7 @@ function showResult(r){
 $('next').onclick=()=>{
   const r=runDay(state);
   if(!r)return;
-  showResult(r);if(state.over)selectedScreen='results';persist();render();dayPlayer.play(r,fastDays);
+  showResult(r);const finished=state.lastChallenge?.endDay===r.day?state.lastChallenge:null;if(finished)flash(`${finished.won?'Medalha conquistada!':'Desafio encerrado.'} ${challengeTypes[finished.id].name}. Você pode escolher um novo objetivo em Resultados.`);if(state.over)selectedScreen='results';persist();render();dayPlayer.play(r,fastDays,finished);
 };
 function scenarioPreview(){
   const scenario=scenarios[$('scenario').value];
@@ -206,6 +234,7 @@ $('reset').onclick=()=>{if(!confirm('Recomeçar o mesmo cenário e substituir a 
 
 $('fastDays').onclick=()=>{fastDays=!fastDays;$('fastDays').setAttribute('aria-pressed',String(fastDays));$('fastDays').textContent=fastDays?'⚡ Resumo direto':'▶ Animar expediente'};
 dayPlayer=createDayPlayer({dialog:$('dayDialog'),onDetails:()=>{selectedScreen='business';showScreen()}});
+strategyLab=createStrategyUI($('strategyLab'),()=>state,message=>{flash(message);syncControls();persist();render()});
 portfolio=createBusinessUI($('businessCards'),()=>state,message=>{flash(message);persist();render()});
 town=createTown({canvas:$('townCanvas'),info:$('townInfo'),inspect:$('inspectSite'),controls:$('townControls'),onChoose:id=>{if(state.over||state.branches===2){$('townInfo').textContent='A localização da sua filial já está definida ou a partida terminou.';return;}selectedDistrict=id;render()}});
 syncControls();

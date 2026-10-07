@@ -1,3 +1,4 @@
+import {challengeTypes,challengeProgress} from './challenges.js';
 import {projectDay,events,capacity,netCash,targetFor} from './engine.js';
 import {businessTypes} from './ventures.js';
 export function advise(s){
@@ -10,6 +11,7 @@ export function advise(s){
   if(s.stock===0)return 'A cafeteria está sem mercadorias. Compare o fornecedor local com o atacado e preserve parte do caixa para operar.';
   if(normal.contractFailed)return 'Você aceitou uma encomenda que ainda não pode entregar. Ajuste estoque e capacidade para evitar a multa.';
   if(normal.cafe.sold<normal.cafe.demand&&s.stock<capacity(s))return 'A cafeteria pode perder vendas por falta de estoque. Uma compra menor preserva caixa; o atacado melhora a margem se você conseguir girar o lote.';
+  if(s.challenge){const p=challengeProgress(s);return `Desafio ativo: ${challengeTypes[s.challenge.id].name}. ${p.remaining} dias restantes. Compare o atendimento e a margem do grupo; mantenha estoque sem comprometer a reserva.`;}
   if(s.sandbox)return 'Sua empresa segue em modo livre. Compare os últimos sete dias, mantenha capital de giro e suspenda lojas com prejuízo enquanto ajusta a estratégia.';
   const days=31-s.day,gap=Math.max(0,targetFor(s)-netCash(s));
   if(!gap)return 'Seu caixa líquido já alcançou a meta. Preserve a reserva até o dia 30; uma expansão tardia pode consumir o dinheiro necessário.';

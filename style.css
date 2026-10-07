@@ -28,3 +28,7 @@
 
 .venture-art.electronics{background:radial-gradient(circle at 30% 30%,#99bfcf,#283d5a)}
 #financialStats .stat strong{overflow-wrap:anywhere}
+
+.business-level{display:inline-block;padding:6px 10px;border:1px solid #6b7d47;border-radius:999px;font-size:10px;color:#dce5b1}.venture-improvement{margin-top:18px;padding-top:18px;border-top:1px solid #43553a}.venture-improvement>strong{font:600 16px Georgia,serif;color:#eee0b3}.challenge-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-top:20px}.challenge-option{padding:18px;border:1px solid #52643b;border-radius:12px;background:#11251a}.challenge-option>strong{color:#eae4b5}.challenge-option>p{font-size:12px;line-height:1.7;color:#c7d2b3;min-height:64px}.challenge-option>button{font-size:12px}.challenge-option.earned{border-color:#c7d58f}.calendar-today{background:#2b3d25}#challengeProgress{font-size:13px;line-height:1.8}.stat strong{overflow-wrap:anywhere}@media(max-width:700px){.challenge-grid{grid-template-columns:1fr}.challenge-option>p{min-height:0}.navigation button{font-size:9px}}
+
+.lab-controls{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:center;margin:16px 0 24px}.lab-controls label{display:block;font-size:12px;margin-bottom:10px}#labPriceValue{float:right;color:#dce8b2}#strategyLab>label{font-size:12px}#strategyLab button{margin-bottom:8px}@media(max-width:700px){.lab-controls{grid-template-columns:1fr}}
