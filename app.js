@@ -1,4 +1,6 @@
-import {initial,buy,runDay,expand,districts,operationCost,borrow,repay,debt,netCash,upgrade,capacity,scenarios,targetFor,suppliers,inventoryCost,breakEven,availableOrder,acceptOrder,trainTeam,cafePayroll} from './engine.js';
+import {restockPlan,replenishCompany} from './restocking.js';
+import {financialReport,exportLedger} from './reports.js';
+import {initial,buy,runDay,expand,districts,operationCost,borrow,repay,debt,netCash,upgrade,capacity,scenarios,targetFor,suppliers,inventoryCost,breakEven,availableOrder,acceptOrder,trainTeam,cafePayroll,continueCompany} from './engine.js';
 import {advise} from './advisor.js';
 import {createDayPlayer} from './day-player.js';
 import {createBusinessUI} from './business-ui.js';
@@ -25,7 +27,7 @@ function showScreen(){
   for(const node of document.querySelectorAll('[data-view]'))node.hidden=node.dataset.view!==selectedScreen||(node.id==='planning'&&state.over)||(node.id==='review'&&!state.over)||(node.id==='storyCard'&&!availableDilemma(state));
   for(const button of document.querySelectorAll('[data-screen]'))button.setAttribute('aria-pressed',String(button.dataset.screen===selectedScreen));
   town?.setActive(selectedScreen==='city');
-  $('screenStatus').textContent=`${screens[selectedScreen]} · Dia ${Math.min(30,state.day)} de 30`;
+  $('screenStatus').textContent=`${screens[selectedScreen]} · Dia ${state.sandbox?`${state.day} · Modo livre`:`${Math.min(30,state.day)} de 30`}`;
 }
 $('navigation').onclick=e=>{const button=e.target.closest('[data-screen]');if(button&&Object.hasOwn(screens,button.dataset.screen)){selectedScreen=button.dataset.screen;showScreen()}};
 function flash(message){$('actionToast').textContent=message;}
@@ -46,17 +48,18 @@ function render(){
   const latest=state.history.at(-1);
   $('businessLedger').innerHTML=latest?([{name:'Rede Café Aurora',...latest.cafe},...latest.ventures.map(v=>({name:businessTypes[v.id].name,...v}))]).map(v=>`<tr><td>${v.name}</td><td>${v.sold}</td><td>${money(v.revenue)}</td><td>${money(v.expenses)}</td><td class="${v.profit>=0?'positive':'negative'}">${money(v.profit)}</td></tr>`).join(''):'<tr><td colspan="5">Encerre um dia para comparar os negócios.</td></tr>';
 
-  const milestone=state.day<8?'Dia 8: desbloqueie a padaria':state.day<15?'Dia 15: desbloqueie o minimercado':'Última etapa: consolide sua empresa até o dia 30';
+  const milestone=state.sandbox?(state.day<40?'Dia 40: desbloqueie Aurora Tecnologia':'Modo livre: desenvolva seu grupo empresarial'):state.day<8?'Dia 8: desbloqueie a padaria':state.day<15?'Dia 15: desbloqueie o minimercado':'Última etapa: consolide sua empresa até o dia 30';
   $('milestoneText').textContent=milestone;
   $('milestoneProgress').value=Math.min(state.day-1,30);
+  $('goalCaption').textContent=state.sandbox?`Campanha ${state.campaign.won?'conquistada':'concluída'} · agora em modo livre`:'caixa líquido até o dia 30';
   $('goalValue').textContent=money(targetFor(state));
   $('progress').max=targetFor(state);
   $('activeScenario').textContent=`Cenário atual: ${scenarios[state.scenario].name}`;
-  $('profitChart').innerHTML=profitChart(state.history);
-  $('chartSummary').textContent=state.history.length?`${state.history.filter(r=>r.profit>0).length} dias lucrativos em ${state.history.length} dias jogados.`:'Abra a loja para registrar seu primeiro resultado.';
+  $('profitChart').innerHTML=profitChart(state.history.slice(-30));
+  $('chartSummary').textContent=state.history.length?`${state.history.filter(r=>r.profit>0).length} dias lucrativos em ${state.history.length} dias no diário. Total da empresa: ${state.totals.days} dias.`:'Abra a loja para registrar seu primeiro resultado.';
   const order=availableOrder(state);
   $('acceptOrder').disabled=!order||state.contract!==null;
-  $('orderStatus').textContent=order?`${order.client}: ${order.quantity} unidades por ${money(order.price)} cada · receita ${money(order.quantity*order.price)}. ${state.contract!==null?'Aceita: entrega automática ao encerrar este dia.':'Disponível só hoje. Você pode ignorar sem penalidade.'}`:'Novas encomendas aparecem nos dias 5, 12 e 20. Não há proposta disponível agora.';
+  $('orderStatus').textContent=order?`${order.client}: ${order.quantity} unidades por ${money(order.price)} cada · receita ${money(order.quantity*order.price)}. ${state.contract!==null?'Aceita: entrega automática ao encerrar este dia.':'Disponível só hoje. Você pode ignorar sem penalidade.'}`:`Novas encomendas aparecem nos dias 5, 12 e 20${state.sandbox?' de cada ciclo de 30 dias':''}. Não há proposta disponível agora.`;
   $('orderReadiness').textContent=order?`Estoque ${state.stock} / ${order.quantity} exigido · capacidade ${capacity(state)} / ${order.quantity} exigida. ${state.stock<order.quantity||capacity(state)<order.quantity?'Você ainda não consegue entregar: ajuste estoque e capacidade antes de encerrar o dia.':'A encomenda cabe agora; ela terá prioridade sobre o balcão.'}`:'';
   const plan=forecast(state);
   $('planning').hidden=state.over;
@@ -65,15 +68,18 @@ function render(){
   const summary=summarize(state);
   $('missionCount').textContent=`${summary.missions.filter(m=>m.done).length} / ${summary.missions.length} conquistas`;
   $('missions').innerHTML=summary.missions.map(m=>`<article class="mission ${m.done?'completed':''}"><strong>${m.done?'✓':'◇'} ${m.title}</strong><p>${m.description}</p><progress max="${m.target}" value="${m.value}" aria-label="${m.title}"></progress><span>${m.value} / ${m.target}${m.done?' · Conquistado':''}</span></article>`).join('');
+  $('continueCompany').hidden=!(state.over&&!state.sandbox&&state.day===31&&state.cash>=0);
+  $('campaignRecord').textContent=state.campaign?`Campanha de 30 dias: ${state.campaign.won?'meta alcançada':'meta não alcançada'} · caixa líquido final ${money(state.campaign.netCash)}. Este resultado fica preservado no modo livre.`:'';
+  renderManagement();
   $('reviewTitle').textContent=summary.outcome;
   $('review').hidden=!state.over;
   $('reviewStats').textContent=`${summary.days} dias · ${summary.sold} vendas · atendimento ${summary.service===null?'sem demanda':summary.service+'%'} · lucro operacional acumulado ${money(summary.profit)} · caixa líquido ${money(summary.netCash)}`;
   $('reviewAdvice').replaceChildren(...summary.feedback.map(text=>{const p=document.createElement('p');p.textContent=text;return p}));
 
-  $('stats').innerHTML=[['Caixa da empresa',money(state.cash)],['Estoque da cafeteria',`${state.stock} unidades`],['Reputação da cafeteria',`${state.reputation}/100`],['Lucro da empresa',money(state.history.reduce((a,r)=>a+r.profit,0))]].map(([label,value])=>`<div class="stat"><span>${label}</span><strong>${value}</strong></div>`).join('');
-  $('day').textContent=`DIA ${Math.min(30,state.day)} / 30`;$('progress').value=Math.max(0,netCash(state));
+  $('stats').innerHTML=[['Caixa da empresa',money(state.cash)],['Estoque da cafeteria',`${state.stock} unidades`],['Reputação da cafeteria',`${state.reputation}/100`],['Lucro da empresa',money(state.totals.profit)]].map(([label,value])=>`<div class="stat"><span>${label}</span><strong>${value}</strong></div>`).join('');
+  $('day').textContent=state.sandbox?`DIA ${state.day} · LIVRE`:`DIA ${Math.min(30,state.day)} / 30`;$('progress').value=Math.max(0,netCash(state));
   $('creditStatus').textContent=state.loan?`Saldo a pagar: ${money(debt(state))} · ${state.loan.remaining} parcelas diárias de R$ 220. Caixa após quitar: ${money(netCash(state))}.`:`Sem dívida. Caixa líquido: ${money(netCash(state))}.`;
-  $('borrow').disabled=state.over||Boolean(state.loan)||state.day>21;
+  $('borrow').disabled=state.over||Boolean(state.loan)||(!state.sandbox&&state.day>21);
   $('repay').disabled=state.over||!state.loan||state.cash<debt(state);
   $('upgrade').disabled=state.over||state.equipment||state.cash<900;
   $('upgrade').textContent=state.equipment?'Máquina profissional instalada':'Comprar máquina · R$ 900';
@@ -90,10 +96,28 @@ function render(){
   $('expand').disabled=state.over||state.branches===2||state.cash<location.cost;
   $('expand').textContent=state.branches===2?`Unidade em ${districts[state.district].name}`:`Abrir em ${location.name} · ${money(location.cost)}`;
   $('investmentPreview').textContent=state.branches===2?'Sua localização está definida. Mantenha estoque e caixa para operar as duas lojas.':`Após abrir: ${money(state.cash-location.cost)} em caixa. Custos de operação da rede: ${money(90+location.rent-(state.equipment?20:0))}/dia, antes de publicidade e salários.`;
-  $('history').innerHTML=state.history.slice().reverse().map(r=>`<tr><td>${r.day}</td><td>${r.sold} / ${r.demand} clientes</td><td>${r.contractFailed?'Falhou':r.contractSold?`${r.contractSold} unidades`: '—'}</td><td>${money(r.revenue)}</td><td>${money(r.goodsCost)}</td><td>${money(r.expenses)}</td><td>${money(r.payment)}</td><td class="${r.profit>=0?'positive':'negative'}">${money(r.profit)}</td></tr>`).join('');
+  $('history').innerHTML=state.history.slice(-Number($('historyDays').value)).reverse().map(r=>`<tr><td>${r.day}</td><td>${r.sold} / ${r.demand} clientes</td><td>${r.contractFailed?'Falhou':r.contractSold?`${r.contractSold} unidades`: '—'}</td><td>${money(r.revenue)}</td><td>${money(r.goodsCost)}</td><td>${money(r.expenses)}</td><td>${money(r.payment)}</td><td class="${r.profit>=0?'positive':'negative'}">${money(r.profit)}</td></tr>`).join('');
   for(const id of ['next','buy','price','marketing','staff','quantity','supplier'])$(id).disabled=state.over;
   showScreen();
 }
+function renderManagement(){
+  const plan=restockPlan(state,Number($('restockDays').value));
+  $('restockRows').innerHTML=plan.items.map(i=>`<tr><td>${i.name}</td><td>${i.stock}</td><td>${i.target}</td><td>${i.quantity}</td><td>${money(i.cost)}</td></tr>`).join('');
+  $('restockTotal').textContent=`Compra conjunta: ${money(plan.total)} · caixa restante: ${money(state.cash-plan.total)}. Lojas suspensas ficam fora da compra.`;
+  $('restockAll').disabled=state.over||plan.total===0||state.cash<plan.total;
+  const r=financialReport(state);
+  $('financialPeriod').textContent=r.days?`Dias ${r.first} a ${r.last} · ${r.days} dias encerrados`:'Aguardando o primeiro expediente';
+  $('financialStats').innerHTML=[['Receita',money(r.revenue)],['Lucro operacional',money(r.profit)],['Margem operacional',r.margin===null?'—':r.margin.toFixed(1)+'%'],['Atendimento',r.service===null?'—':r.service.toFixed(1)+'%']].map(([k,v])=>`<div class="stat"><span>${k}</span><strong>${v}</strong></div>`).join('');
+  $('financialRows').innerHTML=r.businesses.map(b=>`<tr><td>${b.name}</td><td>${b.days}</td><td>${money(b.revenue)}</td><td>${money(b.goodsCost+b.expenses)}</td><td class="${b.profit>=0?'positive':'negative'}">${money(b.profit)}</td></tr>`).join('');
+  $('financialComparison').textContent=r.days===7&&r.previousDays===7?`Lucro dos sete dias anteriores: ${money(r.previousProfit)} · variação: ${money(r.profit-r.previousProfit)}.`:'A comparação com a semana anterior aparece após 14 dias completos.';
+  $('exportLedger').disabled=!state.history.length;
+  $('historyWindow').textContent=`Mostrando ${Math.min(state.history.length,Number($('historyDays').value))} de ${state.history.length} dias disponíveis (máximo 120). Os totais e conquistas preservam os ${state.totals.days} dias da empresa; o gráfico exibe até 30 dias recentes.`;
+}
+$('historyDays').onchange=render;
+$('restockDays').onchange=renderManagement;
+$('restockAll').onclick=()=>{const days=Number($('restockDays').value),plan=restockPlan(state,days);if(!confirm(`Comprar ${money(plan.total)} em estoque para as lojas ativas? A estimativa usa demanda normal por ${days} dias; eventos e reputação podem mudar o consumo. Caixa restante: ${money(state.cash-plan.total)}.`))return;if(replenishCompany(state,days)){flash('Compra conjunta recebida. Estoques e caixa atualizados.');persist();render()}};
+$('continueCompany').onclick=()=>{if(continueCompany(state)){selectedScreen='operation';flash('Modo livre iniciado. Você mantém caixa, estoque, dívida e todas as lojas; a empresa pode continuar por novos dias.');persist();render()}};
+$('exportLedger').onclick=()=>{const url=URL.createObjectURL(new Blob([exportLedger(state)],{type:'text/csv;charset=utf-8'})),a=document.createElement('a');a.href=url;a.download=`primeiro-imperio-financas-dia-${state.day}.csv`;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);flash('Relatório CSV preparado para abrir em uma planilha. Linhas consolidadas e por loja são identificadas separadamente.');};
 $('storyChoices').onclick=e=>{const button=e.target.closest('[data-story-choice]');if(button&&resolveDilemma(state,button.dataset.storyChoice)){flash('Escolha registrada. Caixa, reputação e demanda foram atualizados.');persist();render()}};
 $('trainTeam').onclick=()=>{const cost=state.training===0?300:500;if(!confirm(`Investir ${money(cost)} em treinamento? A equipe ganha +8 de capacidade, melhora a reputação quando atende toda a demanda e recebe +R$ 20/dia de salário.`))return;if(trainTeam(state)){flash('Treinamento concluído. Equipe mais produtiva e novos salários na previsão.');persist();render()}};
 $('acceptOrder').onclick=()=>{
@@ -105,7 +129,7 @@ $('exportGame').onclick=()=>{
   try{
     const blob=new Blob([encodeGame(state)],{type:'application/json'});
     const url=URL.createObjectURL(blob),link=document.createElement('a');
-    link.href=url;link.download=`primeiro-imperio-dia-${Math.min(state.day,30)}.json`;
+    link.href=url;link.download=`primeiro-imperio-dia-${state.day}.json`;
     document.body.append(link);link.click();link.remove();
     setTimeout(()=>URL.revokeObjectURL(url),1000);
     $('backupNotice').textContent='Backup preparado para download. Guarde o arquivo para importar depois.';
@@ -116,14 +140,14 @@ $('importGame').onchange=async e=>{
   try{
     if(file.size>MAX_BACKUP_BYTES)throw new Error('size');
     const restored=decodeGame(await file.text());
-    if(!confirm(`Importar a partida do dia ${Math.min(restored.day,30)} e substituir a atual? Baixe um backup antes se quiser preservá-la.`))return;
+    if(!confirm(`Importar a partida do dia ${restored.day} e substituir a atual? Baixe um backup antes se quiser preservá-la.`))return;
     state=restored;selectedScreen=state.over?'results':'operation';selectedDistrict=state.district??'center';syncControls();
     $('notice').textContent='';
     if(state.history.length)showResult(state.history.at(-1));
     else{ $('report').textContent='Partida importada. Prepare sua loja para o primeiro dia.'; $('lesson').textContent='Compare margem, estoque e capacidade antes de abrir.'; }
     persist();render();
     $('backupNotice').textContent='Partida importada. Você pode continuar de onde parou.';
-  }catch{ $('backupNotice').textContent='Arquivo inválido, incompatível ou maior que 100 KB. A partida atual foi preservada.'; }
+  }catch{ $('backupNotice').textContent='Arquivo inválido, incompatível ou maior que 1 MB. A partida atual foi preservada.'; }
   finally{e.target.value='';}
 };
 $('upgrade').onclick=()=>{if(!confirm('Investir R$ 900 na máquina? Ela adiciona 15 atendimentos por dia na rede e economiza R$ 20/dia de operação. Não garante demanda adicional.'))return;if(upgrade(state)){ $('notice').textContent='Máquina instalada!'; $('lesson').textContent='Economizar R$ 20/dia recuperaria R$ 900 em 45 dias. Para compensar antes, a capacidade extra precisa atender clientes que você estava perdendo. Comprar equipamento não cria demanda.';persist();render()}};

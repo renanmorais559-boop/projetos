@@ -1,3 +1,4 @@
+import {emptyTotals,recordTotals,HISTORY_LIMIT} from './lifetime.js';
 import {projectBusiness} from './ventures.js';
 export const scenarios={
   standard:{name:'Início equilibrado',cash:2500,goal:5000,description:'Aprenda a equilibrar margem, estoque e reserva antes de expandir.'},
@@ -24,7 +25,7 @@ export function upgrade(s){
 }
 export const initial = (scenario='standard') => {
   if(!Object.hasOwn(scenarios,scenario))throw new Error('Cenário desconhecido.');
-  return {scenario,day:1,cash:scenarios[scenario].cash,stock:30,lots:[{quantity:30,cost:8}],price:20,marketing:0,staff:false,branches:1,district:null,loan:null,contract:null,equipment:false,training:0,ventures:[],decisions:[],promotionUntil:0,reputation:50,history:[],over:false};
+  return {scenario,day:1,cash:scenarios[scenario].cash,stock:30,lots:[{quantity:30,cost:8}],price:20,marketing:0,staff:false,branches:1,district:null,loan:null,contract:null,equipment:false,training:0,ventures:[],decisions:[],promotionUntil:0,reputation:50,history:[],over:false,sandbox:false,campaign:null,totals:emptyTotals()};
 };
 export const suppliers={regular:{name:'Distribuidor local',cost:8,min:1},wholesale:{name:'Atacado',cost:6,min:50}};
 export function inventoryCost(s,quantity=s.stock){
@@ -55,7 +56,7 @@ export const creditTerms={principal:2000,installment:220,days:10,total:2200};
 export const debt=s=>s.loan?s.loan.remaining*creditTerms.installment:0;
 export const netCash=s=>s.cash-debt(s);
 export function borrow(s){
-  if(s.over||s.loan||s.day>21)return false;
+  if(s.over||s.loan||(!s.sandbox&&s.day>21))return false;
   s.cash+=creditTerms.principal;s.loan={remaining:creditTerms.days};return true;
 }
 export function repay(s){
@@ -68,7 +69,12 @@ export const orders={
   12:{client:'Feira de empreendedores',quantity:25,price:16},
   20:{client:'Encontro da Estação',quantity:40,price:17}
 };
-export const availableOrder=s=>!s.over&&Object.hasOwn(orders,s.day)?orders[s.day]:null;
+export const orderForDay=(day,sandbox=false)=>orders[sandbox?((day-1)%30)+1:day]??null;
+export const availableOrder=s=>!s.over?orderForDay(s.day,s.sandbox):null;
+export function continueCompany(s){
+  if(!s.over||s.cash<0||s.day!==31||s.sandbox)return false;
+  s.sandbox=true;s.over=false;return true;
+}
 export function acceptOrder(s){
   if(!availableOrder(s)||s.contract!==null)return false;
   s.contract=s.day;return true;
@@ -76,7 +82,7 @@ export function acceptOrder(s){
 export const events=[{title:'Dia normal',factor:1},{title:'Festival no bairro: mais movimento!',factor:1.35},{title:'Chuva forte: menos clientes na rua',factor:.7},{title:'Concorrente em promoção',factor:.85}];
 export function projectCafe(s,event=events[0]){
   const retailDemand=Math.max(0,Math.round((24+(s.day<=s.promotionUntil?8:0)+(s.branches===2?districts[s.district].demand:0)+(s.reputation-50)*.25+s.marketing*.12)*Math.max(.1,1+(20-s.price)*.065)*event.factor));
-  const order=s.contract===null?null:orders[s.contract];
+  const order=s.contract===null?null:orderForDay(s.contract,s.sandbox);
   const contractFailed=Boolean(order&&(s.stock<order.quantity||capacity(s)<order.quantity));
   const contractSold=order&&!contractFailed?order.quantity:0;
   const retailSold=Math.min(s.stock-contractSold,retailDemand,capacity(s)-contractSold);
@@ -103,10 +109,12 @@ export function runDay(s,random=Math.random){
   for(const report of result.ventures){
     const venture=s.ventures.find(v=>v.id===report.id);
     venture.stock-=report.sold;
-    venture.reputation=Math.max(0,Math.min(100,venture.reputation+(report.lost===0?3:-4)));
+    if(!report.paused)venture.reputation=Math.max(0,Math.min(100,venture.reputation+(report.lost===0?3:-4)));
   }
   s.contract=null;
-  s.history.push(result);s.day++;
-  s.over=s.cash<0||s.day>30;
+  recordTotals(s.totals,result);
+  s.history.push(result);if(s.history.length>HISTORY_LIMIT)s.history.shift();s.day++;
+  if(s.day===31)s.campaign={cash:s.cash,netCash:netCash(s),won:s.cash>=0&&netCash(s)>=targetFor(s)};
+  s.over=s.cash<0||(!s.sandbox&&s.day>30);
   return result;
 }

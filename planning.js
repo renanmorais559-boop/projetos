@@ -11,7 +11,7 @@ export function forecast(s){
   if(high.cafe.demand>capacity(s))alerts.push('No cenário forte, sua capacidade é menor que a demanda. Compare equipe e equipamento com o custo de atender mais clientes.');
   if(low.cash<0)alerts.push('No cenário fraco, o caixa fica negativo e a partida termina. Revise despesas ou prepare uma reserva antes de abrir.');
   if(low.profit<0)alerts.push('No cenário fraco, a operação dá prejuízo. Ajuste a margem ou reduza custos; publicidade não garante vendas suficientes.');
-  for(const v of low.ventures){if(v.profit<0)alerts.push(`${businessTypes[v.id].name} projeta prejuízo no cenário fraco. Revise preço, estoque e salários antes de abrir.`);}
+  for(const v of low.ventures){if(!v.paused&&v.profit<0)alerts.push(`${businessTypes[v.id].name} projeta prejuízo no cenário fraco. Revise preço, estoque e salários antes de abrir.`);}
   if(!alerts.length)alerts.push('Estoque, capacidade e caixa cobrem os três cenários atuais. Preserve a reserva ao fazer novos investimentos.');
   return {scenarios,alerts};
 }
