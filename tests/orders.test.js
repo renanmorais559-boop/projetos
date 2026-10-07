@@ -1,0 +1,9 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {initial,buy,runDay,acceptOrder,availableOrder,projectDay} from '../engine.js';
+import {decodeGame,encodeGame} from '../storage.js';
+function dayFive(){const s=initial();for(let i=0;i<4;i++){buy(s,30);runDay(s,()=>0)}return s;}
+test('propostas só aparecem nos dias previstos e aceitação não duplica',()=>{const s=initial();assert.equal(availableOrder(s),null);assert.equal(acceptOrder(s),false);const ready=dayFive();assert.equal(availableOrder(ready).quantity,15);assert.equal(acceptOrder(ready),true);assert.equal(acceptOrder(ready),false)});
+test('encomenda usa estoque e capacidade antes do balcão e receita própria',()=>{const s=dayFive();buy(s,50,'wholesale');acceptOrder(s);const preview=projectDay(s),before=s.cash;const r=runDay(s,()=>0);assert.deepEqual(r,preview);assert.equal(r.contractSold,15);assert.equal(r.sold,25);assert.equal(r.revenue,15*16+10*20);assert.equal(s.cash,before+r.revenue-r.expenses);assert.equal(s.contract,null);assert.equal(r.contractFailed,false)});
+test('falha não consome unidades para encomenda, cobra multa e reputação',()=>{const s=dayFive();s.stock=0;s.lots=[];acceptOrder(s);const reputation=s.reputation;const r=runDay(s,()=>0);assert.equal(r.contractFailed,true);assert.equal(r.contractSold,0);assert.equal(r.revenue,0);assert.equal(r.expenses,170);assert.equal(s.reputation,Math.max(0,reputation-8))});
+test('save preserva encomenda aceita e migra histórico anterior',()=>{const s=dayFive();acceptOrder(s);assert.deepEqual(decodeGame(encodeGame(s)),s);const old=initial();runDay(old,()=>0);delete old.contract;delete old.history[0].contractSold;delete old.history[0].contractFailed;const migrated=decodeGame(JSON.stringify({version:7,state:old}));assert.equal(migrated.contract,null);assert.equal(migrated.history[0].contractSold,0)});

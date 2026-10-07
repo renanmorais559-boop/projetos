@@ -1,0 +1,8 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {initial,borrow,repay,debt,netCash,runDay} from '../engine.js';
+import {loadGame,saveGame} from '../storage.js';
+test('crédito aumenta caixa mas não patrimônio e não acumula contratos',()=>{const s=initial();assert.equal(borrow(s),true);assert.equal(s.cash,4500);assert.equal(debt(s),2200);assert.equal(netCash(s),2300);assert.equal(borrow(s),false);s.day=22;s.loan=null;assert.equal(borrow(s),false)});
+test('dez parcelas encerram dívida sem afetar lucro operacional',()=>{const s=initial();s.stock=1000;s.lots=[{quantity:1000,cost:8}];borrow(s);let expected=s.cash;for(let i=0;i<10;i++){const r=runDay(s,()=>0);assert.equal(r.payment,220);expected+=r.revenue-r.expenses-220;assert.equal(s.cash,expected)}assert.equal(s.loan,null);assert.equal(runDay(s,()=>0).payment,0)});
+test('quitação exige caixa e cobra somente saldo restante',()=>{const s=initial();borrow(s);runDay(s,()=>0);assert.equal(debt(s),1980);const before=s.cash;assert.equal(repay(s),true);assert.equal(s.cash,before-1980);assert.equal(debt(s),0);borrow(s);s.cash=10;assert.equal(repay(s),false)});
+test('save restaura dívida e migra histórico antigo',()=>{let raw;const store={getItem:()=>raw,setItem:(k,v)=>raw=v};const s=initial();borrow(s);runDay(s,()=>0);assert.equal(saveGame(store,s),true);assert.deepEqual(loadGame(store).state,s);const old=initial();runDay(old,()=>0);delete old.loan;delete old.history[0].payment;raw=JSON.stringify({version:3,state:old});const migrated=loadGame(store);assert.equal(migrated.status,'loaded');assert.equal(migrated.state.loan,null);assert.equal(migrated.state.history[0].payment,0)});
